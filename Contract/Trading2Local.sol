@@ -815,7 +815,7 @@ contract Trading2local is Ownable {
     function withdraw(uint256 _amount) public {
         require(isGoPhase == false, "Can't withdraw in GO phase.");
         UserInfo storage user = userInfo[msg.sender];
-        require(_amount >= user.amount2LCT, "withdraw: not good");
+        require(_amount <= user.amount2LCT, "withdraw: not good");
         require(block.timestamp > user.lockTime, "Still in lock period.");
         // uint256 busdAmount = user.amount2LCT.mul(exchangeRate).div(rateDenominator);
         uint256 busdAmount = _amount.mul(exchangeRate).div(rateDenominator);
