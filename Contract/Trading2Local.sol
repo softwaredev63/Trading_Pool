@@ -763,8 +763,6 @@ contract Trading2local is Ownable {
     IPancakeRouter02 public immutable pancakeRouter;
     IPancakeFactory public immutable factory;
 
-    // Info of each pool.
-    // Info of each user that stakes LP tokens.
     mapping (address => UserInfo) public userInfo;
     
 
@@ -804,7 +802,6 @@ contract Trading2local is Ownable {
     }
 
 
-    // Deposit LP tokens to MasterChef for 2LC allocation.
     function deposit(uint256 _amount, uint256 _days) public {
         require(isGoPhase == false, "Can't deposit in Go state.");
         UserInfo storage user = userInfo[msg.sender];
@@ -815,7 +812,6 @@ contract Trading2local is Ownable {
         emit Deposit(msg.sender, _amount);
     }
     
-    // Withdraw LP tokens from MasterChef.
     function withdraw(uint256 _amount) public {
         require(isGoPhase == false, "Can't withdraw in GO phase.");
         UserInfo storage user = userInfo[msg.sender];
