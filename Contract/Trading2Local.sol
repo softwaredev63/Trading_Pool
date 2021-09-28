@@ -751,8 +751,8 @@ contract Trading2local is Ownable {
 
     uint256 private previousBUSDAmount;
 
-    address public immutable BUSD = 0x1286fC858D089191E24fCaAF24466Eb85a8439be; //mainnet 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56   -  testnet 0x1286fC858D089191E24fCaAF24466Eb85a8439be
-    address public immutable BTCB = 0x837f9270cc7e931128c8479769026F8c5d849911; //mainnet 0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c   -  testnet 0x837f9270cc7e931128c8479769026F8c5d849911; 
+    address public immutable BUSD = 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56; //mainnet 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56   -  testnet 0x1286fC858D089191E24fCaAF24466Eb85a8439be
+    address public immutable BTCB = 0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c; //mainnet 0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c   -  testnet 0x837f9270cc7e931128c8479769026F8c5d849911; 
     // Deposit Fee address
     address public feeAddress;
 
@@ -851,9 +851,11 @@ contract Trading2local is Ownable {
     function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
         require(amountIn > 0, 'Trading2LC: INSUFFICIENT_INPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'Trading2LC: INSUFFICIENT_LIQUIDITY');
-        uint amountInWithFee = amountIn.mul(998);
+        // uint amountInWithFee = amountIn.mul(998);
+        uint amountInWithFee = amountIn.mul(9975);
         uint numerator = amountInWithFee.mul(reserveOut);
-        uint denominator = reserveIn.mul(1000).add(amountInWithFee);
+        // uint denominator = reserveIn.mul(1000).add(amountInWithFee);
+        uint denominator = reserveIn.mul(10000).add(amountInWithFee);
         amountOut = numerator / denominator;
     }
 
@@ -885,8 +887,8 @@ contract Trading2local is Ownable {
 
 
     // Update fee address
-    function setFeeAddress(address _feeAddress) public {
-        require(msg.sender == feeAddress, "setFeeAddress: FORBIDDEN");
+    function setFeeAddress(address _feeAddress) public onlyOwner() {
+        // require(msg.sender == feeAddress, "setFeeAddress: FORBIDDEN");
         feeAddress = _feeAddress;
     }
 
