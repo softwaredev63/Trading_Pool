@@ -734,14 +734,11 @@ contract Trading2local is Ownable {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
-    struct UserRewardInfo {
-        uint256 amount;
-        uint256 lockTime;
-    }
-
     // Info of each user.
     struct UserInfo {
         uint256 amount2LCT;
+        uint256[] amountBUSDAtRound;
+        uint256[] roundDepositedAt;
         uint256 lockTime;
     }
 
@@ -755,10 +752,18 @@ contract Trading2local is Ownable {
     address public immutable BTCB = 0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c; //mainnet 0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c   -  testnet 0x837f9270cc7e931128c8479769026F8c5d849911; 
     // Deposit Fee address
     address public feeAddress;
+    uint256 public feePercent;
 
     address public tradingOperator;
 
+    uint256 public periodInPoolDefault;
+
     bool public isGoPhase;
+
+    uint256 public tradingRound;
+    uint256[] public tradingRoundTo2LCT;
+
+
 
     IPancakeRouter02 public immutable pancakeRouter;
     IPancakeFactory public immutable factory;
@@ -799,31 +804,69 @@ contract Trading2local is Ownable {
         IPancakeRouter02 _pancakeRouter = IPancakeRouter02(_routerAddress);
         pancakeRouter = _pancakeRouter;
         factory = IPancakeFactory(_factory);
+        periodInPoolDefault = 30 days;
+        feePercent = 2;
+        tradingRoundTo2LCT.push(exchangeRate);
     }
 
 
     function deposit(uint256 _amount, uint256 _days) public {
-        require(isGoPhase == false, "Can't deposit in Go state.");
+        // require(isGoPhase == false, "Can't deposit in Go state.");
         UserInfo storage user = userInfo[msg.sender];
         
         IBEP20(BUSD).safeTransferFrom(msg.sender, address(this), _amount);
-        user.amount2LCT = user.amount2LCT.add(_amount.mul(rateDenominator).div(exchangeRate));
-        user.lockTime = block.timestamp.add(_days * 1 days);
+
+        if (isGoPhase) {
+            user.amountBUSDAtRound.push(_amount);
+            user.roundDepositedAt.push(tradingRound);
+        }
+        else {
+            user.amount2LCT = user.amount2LCT.add(_amount.mul(rateDenominator).div(exchangeRate));
+            if (_days < periodInPoolDefault) {
+                user.lockTime = block.timestamp.add(periodInPoolDefault);
+            }
+            else {
+                user.lockTime = block.timestamp.add(_days * 1 days);    
+            }
+        }
+        
         emit Deposit(msg.sender, _amount);
+    }
+
+    function get2LCTofUser(address account) public view returns (uint256 amount) {
+        UserInfo storage user = userInfo[account];
+        amount = user.amount2LCT;
+        for (uint256 index = 0; index < user.amountBUSDAtRound.length; index ++){
+            uint256 BUSDAtRound = user.amountBUSDAtRound[index];
+            uint256 round = user.roundDepositedAt[index];
+            uint256 roundRate = tradingRoundTo2LCT.length > round ? tradingRoundTo2LCT[round] : 1;
+            amount = amount.add(BUSDAtRound.mul(rateDenominator).div(roundRate));            
+        }
     }
     
     function withdraw(uint256 _amount) public {
         require(isGoPhase == false, "Can't withdraw in GO phase.");
         UserInfo storage user = userInfo[msg.sender];
-        require(_amount <= user.amount2LCT, "withdraw: not good");
+        
         require(block.timestamp > user.lockTime, "Still in lock period.");
         // uint256 busdAmount = user.amount2LCT.mul(exchangeRate).div(rateDenominator);
+        for (uint256 index = 0; index < user.amountBUSDAtRound.length; index ++){
+            uint256 BUSDAtRound = user.amountBUSDAtRound[index];
+            uint256 round = user.roundDepositedAt[index];
+            uint256 roundRate = tradingRoundTo2LCT[round];
+            user.amount2LCT = user.amount2LCT.add(BUSDAtRound.mul(rateDenominator).div(roundRate));            
+        }
+
+        require(_amount <= user.amount2LCT, "withdraw: not good");
         uint256 busdAmount = _amount.mul(exchangeRate).div(rateDenominator);
-        uint256 feeAmount = busdAmount.mul(2).div(100);
+        uint256 feeAmount = busdAmount.mul(feePercent).div(100);
         busdAmount = busdAmount.sub(feeAmount);
         IBEP20(BUSD).transfer(msg.sender, busdAmount);
         IBEP20(BUSD).transfer(feeAddress, feeAmount);
         user.amount2LCT = user.amount2LCT.sub(_amount);
+
+        delete user.amountBUSDAtRound;
+        delete user.roundDepositedAt;
     }
 
     function _swap(
@@ -862,9 +905,11 @@ contract Trading2local is Ownable {
     function goTrading() external onlyOperator() {
         require(isGoPhase == false, "Can't go trading.");
         uint256 amountBUSD = IBEP20(BUSD).balanceOf(address(this));
+        require(amountBUSD > 0, "Insufficient BUSD balance.");
         previousBUSDAmount = amountBUSD;
         _swap(BUSD, BTCB, amountBUSD, address(this));
         isGoPhase = true;
+        tradingRound = tradingRound.add(1);
     }
 
     function stopTrading() external onlyOperator() {
@@ -873,14 +918,17 @@ contract Trading2local is Ownable {
         uint256 amountBUSD = _swap(BTCB, BUSD, amountBTCB, address(this));
         
         uint256 dRate;
-        if (amountBUSD > previousBUSDAmount) {
-            dRate = amountBUSD.sub(previousBUSDAmount).mul(rateDenominator).div(previousBUSDAmount);
-            exchangeRate = exchangeRate.add(dRate);
-        }
-        else {
-            dRate = previousBUSDAmount.sub(amountBUSD).mul(rateDenominator).div(previousBUSDAmount);
-            exchangeRate = exchangeRate.sub(dRate);
-        }
+        // if (amountBUSD > previousBUSDAmount) {
+        //     dRate = amountBUSD.sub(previousBUSDAmount).mul(rateDenominator).div(previousBUSDAmount);
+        //     exchangeRate = exchangeRate.add(dRate);
+        // }
+        // else {
+        //     dRate = previousBUSDAmount.sub(amountBUSD).mul(rateDenominator).div(previousBUSDAmount);
+        //     exchangeRate = exchangeRate.sub(dRate);
+        // }
+        exchangeRate = exchangeRate.mul(amountBUSD).div(previousBUSDAmount);
+
+        tradingRoundTo2LCT.push(exchangeRate);
 
         isGoPhase = false;
     }
