@@ -757,18 +757,23 @@ contract Trading2local is Ownable {
     address public tradingOperator;
 
     uint256 public periodInPoolDefault;
+    uint256 public periodInPoolAvg;
 
     bool public isGoPhase;
 
     uint256 public tradingRound;
     uint256[] public tradingRoundTo2LCT;
 
+    uint256 public highestAdded;
 
 
     IPancakeRouter02 public immutable pancakeRouter;
     IPancakeFactory public immutable factory;
 
     mapping (address => UserInfo) public userInfo;
+    mapping (address => bool) public isDepositor;
+
+    uint256 public depositCount;
     
 
     event Deposit(address indexed user, uint256 amount);
@@ -809,11 +814,25 @@ contract Trading2local is Ownable {
         tradingRoundTo2LCT.push(exchangeRate);
     }
 
+    function get2LCTAvgInPool() public view returns (uint256) {
+        return periodInPoolAvg.div(depositCount).div(1 days);
+    }
+
 
     function deposit(uint256 _amount, uint256 _days) public {
         // require(isGoPhase == false, "Can't deposit in Go state.");
         UserInfo storage user = userInfo[msg.sender];
+        bool _isDepositor = isDepositor[msg.sender];
         
+        if (!_isDepositor) {
+            depositCount = depositCount.add(1);
+            isDepositor[msg.sender] = true;
+        }
+
+        if (_amount > highestAdded) {
+            highestAdded = _amount;
+        }
+
         IBEP20(BUSD).safeTransferFrom(msg.sender, address(this), _amount);
 
         if (isGoPhase) {
@@ -824,9 +843,11 @@ contract Trading2local is Ownable {
             user.amount2LCT = user.amount2LCT.add(_amount.mul(rateDenominator).div(exchangeRate));
             if (_days < periodInPoolDefault) {
                 user.lockTime = block.timestamp.add(periodInPoolDefault);
+                periodInPoolAvg = periodInPoolAvg.add(periodInPoolDefault);
             }
             else {
                 user.lockTime = block.timestamp.add(_days * 1 days);    
+                periodInPoolAvg = periodInPoolAvg.add(_days * 1 days);
             }
         }
         
@@ -917,7 +938,7 @@ contract Trading2local is Ownable {
         uint256 amountBTCB = IBEP20(BTCB).balanceOf(address(this));
         uint256 amountBUSD = _swap(BTCB, BUSD, amountBTCB, address(this));
         
-        uint256 dRate;
+        // uint256 dRate;
         // if (amountBUSD > previousBUSDAmount) {
         //     dRate = amountBUSD.sub(previousBUSDAmount).mul(rateDenominator).div(previousBUSDAmount);
         //     exchangeRate = exchangeRate.add(dRate);
