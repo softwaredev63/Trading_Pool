@@ -938,15 +938,6 @@ contract Trading2local is Ownable {
         uint256 amountBTCB = IBEP20(BTCB).balanceOf(address(this));
         uint256 amountBUSD = _swap(BTCB, BUSD, amountBTCB, address(this));
         
-        // uint256 dRate;
-        // if (amountBUSD > previousBUSDAmount) {
-        //     dRate = amountBUSD.sub(previousBUSDAmount).mul(rateDenominator).div(previousBUSDAmount);
-        //     exchangeRate = exchangeRate.add(dRate);
-        // }
-        // else {
-        //     dRate = previousBUSDAmount.sub(amountBUSD).mul(rateDenominator).div(previousBUSDAmount);
-        //     exchangeRate = exchangeRate.sub(dRate);
-        // }
         exchangeRate = exchangeRate.mul(amountBUSD).div(previousBUSDAmount);
 
         tradingRoundTo2LCT.push(exchangeRate);
