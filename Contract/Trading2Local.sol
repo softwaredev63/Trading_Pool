@@ -739,7 +739,6 @@ contract Trading2local is Ownable {
         uint256 amount2LCT;
         uint256[] amountBUSDAtRound;
         uint256[] roundDepositedAt;
-        uint256 lockTime;
     }
 
     uint256 public exchangeRate = 10 ** 17;
@@ -755,9 +754,6 @@ contract Trading2local is Ownable {
     uint256 public feePercent;
 
     address public tradingOperator;
-
-    uint256 public periodInPoolDefault;
-    uint256 public periodInPoolAvg;
 
     bool public isGoPhase;
 
@@ -809,17 +805,11 @@ contract Trading2local is Ownable {
         IPancakeRouter02 _pancakeRouter = IPancakeRouter02(_routerAddress);
         pancakeRouter = _pancakeRouter;
         factory = IPancakeFactory(_factory);
-        periodInPoolDefault = 30 days;
         feePercent = 2;
         tradingRoundTo2LCT.push(exchangeRate);
     }
 
-    function get2LCTAvgInPool() public view returns (uint256) {
-        return periodInPoolAvg.div(depositCount).div(1 days);
-    }
-
-
-    function deposit(uint256 _amount, uint256 _days) public {
+    function deposit(uint256 _amount) public {
         // require(isGoPhase == false, "Can't deposit in Go state.");
         UserInfo storage user = userInfo[msg.sender];
         bool _isDepositor = isDepositor[msg.sender];
@@ -841,14 +831,6 @@ contract Trading2local is Ownable {
         }
         else {
             user.amount2LCT = user.amount2LCT.add(_amount.mul(rateDenominator).div(exchangeRate));
-            if (_days < periodInPoolDefault) {
-                user.lockTime = block.timestamp.add(periodInPoolDefault);
-                periodInPoolAvg = periodInPoolAvg.add(periodInPoolDefault);
-            }
-            else {
-                user.lockTime = block.timestamp.add(_days * 1 days);    
-                periodInPoolAvg = periodInPoolAvg.add(_days * 1 days);
-            }
         }
         
         emit Deposit(msg.sender, _amount);
@@ -869,7 +851,6 @@ contract Trading2local is Ownable {
         require(isGoPhase == false, "Can't withdraw in GO phase.");
         UserInfo storage user = userInfo[msg.sender];
         
-        require(block.timestamp > user.lockTime, "Still in lock period.");
         // uint256 busdAmount = user.amount2LCT.mul(exchangeRate).div(rateDenominator);
         for (uint256 index = 0; index < user.amountBUSDAtRound.length; index ++){
             uint256 BUSDAtRound = user.amountBUSDAtRound[index];
